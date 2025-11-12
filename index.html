@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简易留言系统</title>
+  <!-- 引入Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome -->
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <!-- 引入Supabase客户端 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- 配置Tailwind自定义主题 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#FF7D00',
+            neutral: {
+              100: '#F5F7FA',
+              200: '#E5E6EB',
+              300: '#C9CDD4',
+              400: '#86909C',
+              500: '#4E5969',
+              600: '#272E3B',
+              700: '#1D2129',
+            }
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .card-hover {
+        @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+      }
+      .input-focus {
+        @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none;
+      }
+    }
+  </style>
+
+  <style>
+    /* 动画效果 */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="font-inter bg-neutral-100 text-neutral-700 min-h-screen">
+  <!-- 导航栏 -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm transition-all duration-300">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa fa-comments text-primary text-2xl"></i>
+        <h1 class="text-xl md:text-2xl font-bold text-neutral-700">留言系统</h1>
+      </div>
+      <div class="hidden md:flex items-center space-x-6">
+        <a href="#" class="text-neutral-500 hover:text-primary transition-colors">首页</a>
+        <a href="#" class="text-neutral-500 hover:text-primary transition-colors">关于</a>
+        <a href="#" class="text-neutral-500 hover:text-primary transition-colors">联系</a>
+      </div>
+      <button class="md:hidden text-neutral-700" id="menuToggle">
+        <i class="fa fa-bars text-xl"></i>
+      </button>
+    </div>
+    <!-- 移动端菜单 -->
+    <div id="mobileMenu" class="hidden md:hidden bg-white border-t border-neutral-200">
+      <div class="container mx-auto px-4 py-2 flex flex-col space-y-3">
+        <a href="#" class="py-2 text-neutral-500 hover:text-primary transition-colors">首页</a>
+        <a href="#" class="py-2 text-neutral-500 hover:text-primary transition-colors">关于</a>
+        <a href="#" class="py-2 text-neutral-500 hover:text-primary transition-colors">联系</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-8 md:py-12">
+    <!-- 页面标题 -->
+    <div class="text-center mb-10">
+      <h2 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-neutral-700 mb-3 text-shadow">
+        分享你的想法
+      </h2>
+      <p class="text-neutral-500 max-w-2xl mx-auto">
+        在这里留下你的留言，与大家分享你的想法和感受。所有留言将公开显示。
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- 留言输入区 -->
+      <div class="lg:col-span-1">
+        <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+          <h3 class="text-xl font-semibold mb-4 text-neutral-700 flex items-center">
+            <i class="fa fa-pencil-square-o text-primary mr-2"></i>
+            发表留言
+          </h3>
+          
+          <form id="messageForm" class="space-y-4">
+            <div>
+              <label for="name" class="block text-sm font-medium text-neutral-600 mb-1">
+                你的昵称 <span class="text-red-500">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="name" 
+                class="w-full px-4 py-2 border border-neutral-300 rounded-lg input-focus transition-all"
+                placeholder="请输入你的昵称"
+                required
+              >
+            </div>
+            
+            <div>
+              <label for="email" class="block text-sm font-medium text-neutral-600 mb-1">
+                电子邮箱
+              </label>
+              <input 
+                type="email" 
+                id="email" 
+                class="w-full px-4 py-2 border border-neutral-300 rounded-lg input-focus transition-all"
+                placeholder="请输入你的邮箱（选填）"
+              >
+            </div>
+            
+            <div>
+              <label for="content" class="block text-sm font-medium text-neutral-600 mb-1">
+                留言内容 <span class="text-red-500">*</span>
+              </label>
+              <textarea 
+                id="content" 
+                rows="5" 
+                class="w-full px-4 py-2 border border-neutral-300 rounded-lg input-focus transition-all resize-none"
+                placeholder="请输入你的留言内容..."
+                required
+                maxlength="500"
+              ></textarea>
+              <p class="text-xs text-neutral-400 mt-1" id="charCount">0/500</p>
+            </div>
+            
+            <button 
+              type="submit" 
+              id="submitBtn"
+              class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>提交留言</span>
+              <i class="fa fa-paper-plane"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      
+      <!-- 留言展示区 -->
+      <div class="lg:col-span-2">
+        <div class="bg-white rounded-xl shadow-md p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-semibold text-neutral-700 flex items-center">
+              <i class="fa fa-comments-o text-primary mr-2"></i>
+              最新留言
+            </h3>
+            <span class="text-sm text-neutral-500" id="messageCount">0 条留言</span>
+          </div>
+          
+          <!-- 留言加载状态 -->
+          <div id="loadingState" class="py-12 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+            <p class="text-neutral-500">加载留言中...</p>
+          </div>
+          
+          <!-- 无留言状态 -->
+          <div id="emptyState" class="py-12 text-center hidden">
+            <i class="fa fa-comment-o text-5xl text-neutral-200 mb-4"></i>
+            <p class="text-neutral-500">还没有留言，快来发表第一条留言吧！</p>
+          </div>
+          
+          <!-- 留言列表 -->
+          <div id="messageList" class="space-y-5">
+            <!-- 留言项将通过JavaScript动态添加 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="bg-neutral-700 text-white mt-16">
+    <div class="container mx-auto px-4 py-8">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <div class="flex items-center space-x-2">
+            <i class="fa fa-comments text-primary text-xl"></i>
+            <span class="font-bold">留言系统</span>
+          </div>
+          <p class="text-neutral-300 text-sm mt-2">分享想法，连接彼此</p>
+        </div>
+        
+        <div class="flex space-x-4">
+          <a href="https://github.com/Evil-Koi" class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center hover:bg-primary transition-colors">
+            <i class="fa fa-github"></i>
+          </a>
+          <a href="#" class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center hover:bg-primary transition-colors">
+            <i class="fa fa-twitter"></i>
+          </a>
+          <a href="#" class="w-8 h-8 rounded-full bg-neutral-600 flex items-center justify-center hover:bg-primary transition-colors">
+            <i class="fa fa-envelope"></i>
+          </a>
+        </div>
+      </div>
+      
+      <div class="border-t border-neutral-600 mt-6 pt-6 text-center text-neutral-300 text-sm">
+        &copy; 2023 留言系统 | 托管于 GitHub Pages
+      </div>
+    </div>
+  </footer>
+
+  <!-- 成功提示弹窗 -->
+  <div id="successToast" class="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center space-x-2">
+    <i class="fa fa-check-circle"></i>
+    <span>留言提交成功！</span>
+  </div>
+
+  <script>
+    // Supabase 配置（使用你的项目信息）
+    const supabaseUrl = 'https://pfyxeruupbpbkgfhkyie.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmeXhlcnV1cGJwYmtnZmhreWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MzYwOTQsImV4cCI6MjA3ODUxMjA5NH0.awnIF8LSWhOpbMNu3HCWoUWV8EuegXh86Oy3wcjdDXo';
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    // DOM元素
+    const messageForm = document.getElementById('messageForm');
+    const nameInput = document.getElementById('name');
+    const emailInput = document.getElementById('email');
+    const contentInput = document.getElementById('content');
+    const charCount = document.getElementById('charCount');
+    const submitBtn = document.getElementById('submitBtn');
+    const messageList = document.getElementById('messageList');
+    const messageCount = document.getElementById('messageCount');
+    const loadingState = document.getElementById('loadingState');
+    const emptyState = document.getElementById('emptyState');
+    const successToast = document.getElementById('successToast');
+    const menuToggle = document.getElementById('menuToggle');
+    const mobileMenu = document.getElementById('mobileMenu');
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+      // 加载留言
+      await loadAndRenderMessages();
+      
+      // 实时监听新留言
+      const unsubscribe = subscribeToNewMessages(async () => {
+        await loadAndRenderMessages();
+      });
+      
+      // 页面关闭时取消订阅
+      window.addEventListener('beforeunload', unsubscribe);
+      
+      // 事件监听
+      messageForm.addEventListener('submit', handleFormSubmit);
+      contentInput.addEventListener('input', updateCharCount);
+      menuToggle.addEventListener('click', toggleMobileMenu);
+      window.addEventListener('scroll', handleScroll);
+    });
+
+    // 处理滚动事件（导航栏效果）
+    function handleScroll() {
+      const header = document.querySelector('header');
+      if (window.scrollY > 50) {
+        header.classList.add('py-2', 'shadow');
+        header.classList.remove('py-4');
+      } else {
+        header.classList.add('py-4');
+        header.classList.remove('py-2', 'shadow');
+      }
+    }
+
+    // 切换移动端菜单
+    function toggleMobileMenu() {
+      mobileMenu.classList.toggle('hidden');
+    }
+
+    // 更新字符计数
+    function updateCharCount() {
+      const length = contentInput.value.length;
+      charCount.textContent = `${length}/500`;
+      
+      if (length > 500) {
+        charCount.classList.add('text-red-500');
+      } else {
+        charCount.classList.remove('text-red-500');
+      }
+    }
+
+    // Supabase 数据操作函数
+    async function addMessage(name, email, content) {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert([
+          { 
+            name: name.trim(), 
+            email: email.trim() || null,
+            content: content.trim() 
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+      return data[0];
+    }
+
+    async function getMessages() {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    }
+
+    function subscribeToNewMessages(callback) {
+      const subscription = supabase
+        .channel('messages-channel')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          callback
+        )
+        .subscribe();
+
+      return () => supabase.removeChannel(subscription);
+    }
+
+    // 加载并渲染留言
+    async function loadAndRenderMessages() {
+      try {
+        // 显示加载状态
+        loadingState.classList.remove('hidden');
+        emptyState.classList.add('hidden');
+        messageList.classList.add('hidden');
+
+        // 获取留言数据
+        const messages = await getMessages();
+
+        // 更新计数
+        messageCount.textContent = `${messages.length} 条留言`;
+
+        // 渲染留言列表
+        messageList.innerHTML = '';
+        if (messages.length === 0) {
+          emptyState.classList.remove('hidden');
+        } else {
+          messages.forEach((msg, index) => {
+            const msgEl = createMessageElement(msg, index);
+            messageList.appendChild(msgEl);
+          });
+          messageList.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('加载留言失败:', error);
+        loadingState.innerHTML = `
+          <i class="fa fa-exclamation-triangle text-orange-500 text-2xl mb-2"></i>
+          <p class="text-neutral-500">加载失败，请刷新页面重试</p>
+        `;
+      } finally {
+        loadingState.classList.add('hidden');
+      }
+    }
+
+    // 处理表单提交
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      // 获取表单数据
+      const name = nameInput.value;
+      const email = emailInput.value;
+      const content = contentInput.value;
+
+      // 验证
+      if (!name.trim()) {
+        alert('请输入昵称');
+        return;
+      }
+      if (!content.trim()) {
+        alert('请输入留言内容');
+        return;
+      }
+
+      // 禁用提交按钮
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div><span>提交中...</span>';
+
+      try {
+        // 提交留言
+        await addMessage(name, email, content);
+        
+        // 重置表单
+        messageForm.reset();
+        updateCharCount();
+        
+        // 显示成功提示
+        showSuccessToast();
+      } catch (error) {
+        console.error('提交失败:', error);
+        alert('提交失败：' + (error.message || '未知错误'));
+      } finally {
+        // 恢复按钮状态
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>提交留言</span><i class="fa fa-paper-plane"></i>';
+      }
+    }
+
+    // 创建留言元素
+    function createMessageElement(message, index) {
+      const div = document.createElement('div');
+      div.className = 'border-b border-neutral-100 pb-5 last:border-0 last:pb-0 animate-fadeIn';
+      div.dataset.index = index;
+
+      // 格式化日期
+      const date = new Date(message.created_at);
+      const formattedDate = date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      div.innerHTML = `
+        <div class="flex items-start">
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4 flex-shrink-0">
+            ${escapeHtml(message.name.charAt(0))}
+          </div>
+          <div class="flex-1">
+            <div class="flex flex-wrap items-center justify-between mb-1">
+              <h4 class="font-semibold text-neutral-700">${escapeHtml(message.name)}</h4>
+              <span class="text-xs text-neutral-400">${formattedDate}</span>
+            </div>
+            <p class="text-neutral-600 whitespace-pre-line">${escapeHtml(message.content)}</p>
+          </div>
+        </div>
+      `;
+
+      return div;
+    }
+
+    // 显示成功提示
+    function showSuccessToast() {
+      successToast.classList.remove('translate-y-20', 'opacity-0');
+      successToast.classList.add('translate-y-0', 'opacity-100');
+      
+      setTimeout(() => {
+        successToast.classList.remove('translate-y-0', 'opacity-100');
+        successToast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    // HTML转义（防XSS）
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
